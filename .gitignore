@@ -2,3 +2,4 @@
 venv/  # Also ignore your virtual environment folder
 __pycache__/
 *.pyc
+adc_data*/

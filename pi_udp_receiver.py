@@ -16,7 +16,7 @@ from collections import deque
 UDP_IP = "0.0.0.0"
 UDP_PORT = 5005
 BUFFER_SIZE = 4096
-DATA_DIR = "adc_data"
+DATA_DIR = "adc_data-2021"
 SAMPLES_PER_FILE = 1000000
 
 # Shared state
@@ -114,7 +114,8 @@ def print_stats(start_time):
     total = stats['total_samples']
     written = format_bytes(stats['bytes_written'])
     
-    print(f"Time: {hours:02d}:{mins:02d}:{secs:02d} | "
+    print(f"Current Time: {datetime.now()} | "
+          f"Time Elapsed: {hours:02d}:{mins:02d}:{secs:02d} | "
           f"Rate: {rate:4d}/s | "
           f"Total: {total:9d} | "
           f"Queue: {queue_size:5d} | "
@@ -156,6 +157,7 @@ def main():
                 if first_packet:
                     print(f"Connected to {addr[0]}:{addr[1]}\n")
                     first_packet = False
+                    print_stats(start_time)
                 
                 timestamp = time.time()
                 adc_values = parse_packet(data)
@@ -167,8 +169,8 @@ def main():
                         stats['total_samples'] += 1
                         stats['samples_per_second'] += 1
                 
-                # Print stats every second
-                if time.time() - stats['last_stats_time'] >= 1.0:
+                # Print stats every 5 seconds
+                if time.time() - stats['last_stats_time'] >= 5.0:
                     print_stats(start_time)
                     stats['last_stats_time'] = time.time()
                 

@@ -4,5 +4,4 @@ ML/
 __pycache__/
 *.pyc
 Data/
-Data.zip
 !Data/all_nights_formatted_data.csv

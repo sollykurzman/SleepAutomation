@@ -3,5 +3,4 @@ venv/
 ML/
 __pycache__/
 *.pyc
-Data/
-!Data/all_nights_formatted_data.csv
+Data/**/raw_data-*.csv

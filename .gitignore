@@ -1,5 +1,8 @@
 .env
-venv/  # Also ignore your virtual environment folder
+venv/
+ML/
 __pycache__/
 *.pyc
-adc_data*/
+Data/
+Data.zip
+!Data/all_nights_formatted_data.csv

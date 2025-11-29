@@ -27,7 +27,7 @@ def parse_packet(data):
         
     return struct.unpack(f'<{count}h', data)
 
-def reciever(date, until=None):
+def reciever(until=None):
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2*1024*1024)
@@ -91,7 +91,13 @@ if __name__ == "__main__":
 
     print(f"Running data collection and classification until {until} for night: {night_id}")
 
-    print(get_calendar_data(tomorrow.replace(hour=00, minute=00, second=0, microsecond=0)))
+    events = get_calendar_data(tomorrow.replace(hour=00, minute=00, second=0, microsecond=0))
+
+    events = sorted(events, key=lambda x: x['time'])
+
+    events = [entry for entry in events if 'ignorethis' not in entry['notes']]
+
+    print(events[0])
 
     # store_data.start_workers(night_id, until)
 
@@ -99,7 +105,7 @@ if __name__ == "__main__":
 
     # reciever_thread = threading.Thread(
     #     target=reciever,
-    #     args=(night_id, until),
+    #     args=(until,),
     #     daemon=True
     # )
-
+    # reciever_thread.start()

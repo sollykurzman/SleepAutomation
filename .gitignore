@@ -4,3 +4,4 @@ ML/
 __pycache__/
 *.pyc
 Data/**/raw_data-*.csv
+.DS_Store

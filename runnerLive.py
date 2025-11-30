@@ -3,18 +3,27 @@
 import socket
 import struct
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dt_time
 import threading
+import signal
+import sys
 
 import storeData as store_data
 import liveClassify as classifier
 import processData as data_processor
 from getCalendarData import get_calendar_data
+from Alarm import schedule_alarm
 
 UDP_IP = "0.0.0.0"
 UDP_PORT = 5005
 PACKETS = 12
 BUFFER_SIZE = 4096
+
+def handle_sigterm(signum, frame):
+    print("Service stopping?")
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, handle_sigterm)
 
 def parse_packet(data):
     remainder = len(data) % 2
@@ -83,11 +92,13 @@ def reciever(until=None):
         sock.close()
 
 if __name__ == "__main__":
-    
+    cutoff = dt_time(14, 00, 0, 0)
     today = datetime.now()
+    if today.time() < cutoff:
+        today = today - timedelta(days=1)
     tomorrow = today + timedelta(days=1)
     night_id = datetime.now().strftime("%d%m%y")
-    until = tomorrow.replace(hour=14, minute=00, second=0, microsecond=0)
+    until = datetime.combine(tomorrow.date(),cutoff)
 
     print(f"Running data collection and classification until {until} for night: {night_id}")
 
@@ -97,15 +108,21 @@ if __name__ == "__main__":
 
     events = [entry for entry in events if 'ignorethis' not in entry['notes']]
 
-    print(events[0])
+    event_time = datetime.combine(datetime.today(), events[0]['time'])
 
-    # store_data.start_workers(night_id, until)
+    first_event = event_time - timedelta(hours=1)
 
-    # classifier.start_workers(night_id, until)
+    print(first_event.time())
 
-    # reciever_thread = threading.Thread(
-    #     target=reciever,
-    #     args=(until,),
-    #     daemon=True
-    # )
-    # reciever_thread.start()
+    schedule_alarm(first_event.time())
+
+    store_data.start_workers(night_id, until)
+
+    classifier.start_workers(night_id, until)
+
+    reciever_thread = threading.Thread(
+        target=reciever,
+        args=(until,),
+        daemon=True
+    )
+    reciever_thread.start()

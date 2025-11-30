@@ -1,10 +1,18 @@
 #!/usr/bin/python3
 
 from datetime import datetime, timedelta
+import signal
+import sys
 
 import scrapeWhoopData
 import formatData
 import trainModels
+
+def handle_sigterm(signum, frame):
+    print("Service stopping?")
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, handle_sigterm)
 
 if __name__ == "__main__":
     today = datetime.now()

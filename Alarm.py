@@ -2,12 +2,8 @@ from gpiozero import PWMOutputDevice, Button
 from time import sleep
 import subprocess
 
-# --- Configuration ---
 BUZZER_PIN = 23
-BUTTON_PIN = 24  # New button connected here
-
-# Setup devices
-
+BUTTON_PIN = 24
 
 VOLUME = 1.0
 SPEED_MULTIPLIER = 1.0
@@ -17,7 +13,7 @@ ALARM_PATTERN = [
     (0.1, 0.6)
 ]
 
-def schedule_alarm(time):
+def schedule_alarm(time): #e.g. time = "09:00:00"
     timer_file = "/etc/systemd/system/alarm.timer"
 
     new_contents = f"""[Unit]
@@ -25,7 +21,6 @@ Description=Alarm timer
 
 [Timer]
 OnCalendar=*-*-* {time}
-Persistent=true
 
 [Install]
 WantedBy=timers.target"""
@@ -41,14 +36,12 @@ def run_active_alarm():
 
     try:
         while alarm_running:
-            # Check button at the start of the cycle
             if stop_button.is_pressed:
                 print("\nButton pressed. Ending alarm.")
                 alarm_running = False
                 break
 
             for on_time, off_time in ALARM_PATTERN:
-                # Check button before the beep
                 if stop_button.is_pressed:
                     alarm_running = False
                     break
@@ -62,7 +55,6 @@ def run_active_alarm():
                 
                 buzzer.off()
                 
-                # Check button during the silence (responsive feel)
                 if stop_button.is_pressed:
                     alarm_running = False
                     break
@@ -73,7 +65,6 @@ def run_active_alarm():
         print("\nAlarm stopped via Keyboard.")
     
     finally:
-        # Ensure buzzer is off regardless of how we exited
         buzzer.off()
         print("System cleanup complete.")
 

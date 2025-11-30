@@ -94,6 +94,19 @@ def reciever(until=None):
         print("Stopping...")
         sock.close()
 
+def get_first_event_time(datetime):
+    events = get_calendar_data()
+
+    events = sorted(events, key=lambda x: x['time'])
+
+    events = [entry for entry in events if 'ignorethis' not in entry['notes']]
+
+    event_time = datetime.combine(datetime.today(), events[0]['time'])
+
+    first_event = event_time - timedelta(hours=1)
+
+    return first_event.time()
+
 def save_event_to_json(event_type: str, timestamp: datetime, JSON_FILE="sleep_events.json"):
     """Store sleep onset or wake-up events in a persistent JSON file."""
     
@@ -119,6 +132,9 @@ def save_event_to_json(event_type: str, timestamp: datetime, JSON_FILE="sleep_ev
     # Save back to JSON
     with open(JSON_FILE, "w") as f:
         json.dump(data, f, indent=4)
+
+def save_sleep_events():
+    pass
 
 def monitor_classification_history():
     print("Sleep Tracker Monitor Started...")
@@ -166,19 +182,9 @@ if __name__ == "__main__":
 
     print(f"Running data collection and classification until {until} for night: {night_id}")
 
-    events = get_calendar_data(tomorrow.replace(hour=00, minute=00, second=0, microsecond=0))
+    first_event_time = get_first_event_time(tomorrow.replace(hour=00, minute=00, second=0, microsecond=0))
 
-    events = sorted(events, key=lambda x: x['time'])
-
-    events = [entry for entry in events if 'ignorethis' not in entry['notes']]
-
-    event_time = datetime.combine(datetime.today(), events[0]['time'])
-
-    first_event = event_time - timedelta(hours=1)
-
-    print(first_event.time())
-
-    schedule_alarm(first_event.time())
+    schedule_alarm(first_event_time)
 
     store_data.start_workers(night_id, until)
 

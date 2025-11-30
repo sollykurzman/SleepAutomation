@@ -114,7 +114,7 @@ def monitor_switch_events(date, until=None):
             
                 print(f"Switch Event Received: {message} from {addr}")
                 
-                file_path = f"{dir_path}/bedState_events-{date}.csv"
+                file_path = f"{dir_path}/inbed_data-{date}.csv"
                 file_exists = os.path.isfile(file_path)
                 
                 df_switch = pd.DataFrame([{

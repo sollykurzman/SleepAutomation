@@ -154,8 +154,8 @@ def get_heartbeat_stats(voltage_win, fs):
     return avg_bpm, heart_coherence
 
 def load_sleep_state_data(night_id):
-    csv_filepath = f'Data/{night_id}/true_watch_sleep_data-{night_id}.csv'
-    user_input_path = f'Data/{night_id}/bedState_events-{night_id}.csv'
+    csv_filepath = f'Data/{night_id}/true_sleep_data-{night_id}.csv'
+    user_input_path = f'Data/{night_id}/inbed_data-{night_id}.csv'
     
     df = pd.read_csv(csv_filepath)
     df = df[df['sleep_state'] != 'Disturbance'].reset_index(drop=True)

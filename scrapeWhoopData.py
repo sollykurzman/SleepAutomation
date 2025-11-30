@@ -171,7 +171,7 @@ def scrape_whoop_data(file):
 
     sleep_data = get_sleep_data(date=date)
     if sleep_data:
-        save_sleep_data(sleep_data, f"Data/{file}/true_watch_sleep_data-{file}.csv")
+        save_sleep_data(sleep_data, f"Data/{file}/true_sleep_data-{file}.csv")
     else:
         print("No Sleep State data retrieved.")
 

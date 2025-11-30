@@ -34,7 +34,6 @@ WantedBy=timers.target"""
     subprocess.run(["sudo", "systemctl", "daemon-reload"])
     subprocess.run(["sudo", "systemctl", "restart", "alarm.timer"])
 
-
 def run_active_alarm():
     buzzer = PWMOutputDevice(BUZZER_PIN, frequency=2000)
     stop_button = Button(BUTTON_PIN)

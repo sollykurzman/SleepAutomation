@@ -1,6 +1,5 @@
 from gpiozero import PWMOutputDevice, Button
 from time import sleep
-import subprocess
 
 BUZZER_PIN = 23
 BUTTON_PIN = 24
@@ -12,22 +11,6 @@ ALARM_PATTERN = [
     (0.1, 0.1),
     (0.1, 0.6)
 ]
-
-def schedule_alarm(time): #e.g. time = "09:00:00"
-    timer_file = "/etc/systemd/system/alarm.timer"
-
-    new_contents = f"""[Unit]
-Description=Alarm timer
-
-[Timer]
-OnCalendar=*-*-* {time}
-
-[Install]
-WantedBy=timers.target"""
-    
-    subprocess.run(["sudo", "/usr/local/bin/update_alarm_timer", new_contents])
-    subprocess.run(["sudo", "systemctl", "daemon-reload"])
-    subprocess.run(["sudo", "systemctl", "restart", "alarm.timer"])
 
 def run_active_alarm():
     buzzer = PWMOutputDevice(BUZZER_PIN, frequency=2000)

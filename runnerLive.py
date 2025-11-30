@@ -15,7 +15,7 @@ import storeData as store_data
 import liveClassify as classifier
 import processData as data_processor
 from getCalendarData import get_calendar_data
-# from Alarm import schedule_alarm
+from Alarm import schedule_alarm
 
 UDP_IP = "0.0.0.0"
 UDP_PORT = 5005
@@ -136,7 +136,7 @@ def monitor_classification_history():
         timestamps = [time for time, _ in sleep_data]
 
         minute_state = statistics.mode(sleep_states)
-        dominant_buffer.append(minute_state)
+        dominant_buffer.add_data(minute_state)
 
         if len(dominant_buffer.get_data()) >= 15:
             recent_states = dominant_buffer.get_data()
@@ -178,7 +178,7 @@ if __name__ == "__main__":
 
     print(first_event.time())
 
-    # schedule_alarm(first_event.time())
+    schedule_alarm(first_event.time())
 
     store_data.start_workers(night_id, until)
 

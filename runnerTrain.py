@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dt_time
 import signal
 import sys
 
@@ -15,7 +15,11 @@ def handle_sigterm(signum, frame):
 signal.signal(signal.SIGTERM, handle_sigterm)
 
 if __name__ == "__main__":
+    cutoff = dt_time(14, 00, 0, 0)
     today = datetime.now()
+    if today.time() < cutoff:
+        print("Adjusting date to previous day due to cutoff time")
+        today = today - timedelta(days=1)
     yesterday = today - timedelta(days=1)
     night_id = yesterday.strftime("%d%m%y")
     print(f"Processing night ID: {night_id}")

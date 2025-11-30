@@ -9,7 +9,7 @@ import threading
 from collections import deque
 import pandas as pd
 import joblib
-import queue
+# import queue
 
 import processData as data_processor
 from formatData import process_window, add_history_features
@@ -33,7 +33,7 @@ state_model = joblib.load(PATH + 'state_model.joblib')
 state_model.verbose = 0
 state_encoder = joblib.load(PATH + 'state_encoder.joblib')
 
-result_queue = queue.Queue()
+# result_queue = queue.Queue()
 
 class RollingBuffer:
     def __init__(self, window_seconds, sample_rate):
@@ -75,7 +75,12 @@ class HistoryBuffer:
         with self.lock:
             return list(self.buffer)
         
+    def clear_data(self):
+        with self.lock:
+            self.buffer.clear()
+        
 history_buffer = HistoryBuffer(max_length=12)
+classify_history_buffer = HistoryBuffer(max_length=30)
 
 def predict_with_model(model, encoder, full_data_row):
     required_features = model.feature_names_in_
@@ -97,11 +102,11 @@ def classify_snippet(snippet):
         slp_label = predict_with_model(asleep_model, asleep_encoder, X_input)
         if slp_label == 'Asleep':
             state_label = predict_with_model(state_model, state_encoder, X_input)
-            return f"{ib_label}, {slp_label}, {state_label}"
+            return state_label#f"{ib_label}, {slp_label}, {state_label}"
         else:
-            return f"{ib_label}, {slp_label}"
+            return slp_label#f"{ib_label}, {slp_label}"
     else:
-        return f"{ib_label}"
+        return ib_label#f"{ib_label}"
 
 def parse_packet(data):
     remainder = len(data) % 2
@@ -150,12 +155,14 @@ def classify(date=None, until=None):
         classification = classify_snippet(snippet)
         timestamp = datetime.now()
 
-        result_queue.put({
-            "timestamp": datetime.now(),
-            "state": classification
-        })
+        classify_history_buffer.add_data((timestamp, classification))
+
+        # result_queue.put({
+        #     "timestamp": timestamp,
+        #     "state": classification
+        # })
         
-        print(f"Classified state: {classification} at {timestamp}")
+        # print(f"Classified state: {classification} at {timestamp}")
 
         if date:
                 file_exists = os.path.isfile(f"Data/{date}/classification-{date}.csv")

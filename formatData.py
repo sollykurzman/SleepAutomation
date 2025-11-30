@@ -53,7 +53,8 @@ def add_history_features(df):
     
     for col in cols_to_diff:
         if col in df.columns:
-            df[f'{col}_change'] = df[col].diff().fillna(0).astype(float)
+            numeric_col = pd.to_numeric(df[col], errors='coerce')
+            df[f'{col}_change'] = numeric_col.diff().fillna(0)
 
     return df
     

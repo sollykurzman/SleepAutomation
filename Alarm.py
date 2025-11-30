@@ -3,12 +3,11 @@ from time import sleep
 import subprocess
 
 # --- Configuration ---
-BUZZER_PIN = 14
-BUTTON_PIN = 15  # New button connected here
+BUZZER_PIN = 23
+BUTTON_PIN = 24  # New button connected here
 
 # Setup devices
-buzzer = PWMOutputDevice(BUZZER_PIN, frequency=2000)
-stop_button = Button(BUTTON_PIN)
+
 
 VOLUME = 1.0
 SPEED_MULTIPLIER = 1.0
@@ -37,6 +36,8 @@ WantedBy=timers.target"""
 
 
 def run_active_alarm():
+    buzzer = PWMOutputDevice(BUZZER_PIN, frequency=2000)
+    stop_button = Button(BUTTON_PIN)
     alarm_running = True
 
     try:

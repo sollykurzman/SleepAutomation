@@ -1,0 +1,10 @@
+[
+    {
+        "type": "sleep_onset",
+        "timestamp": "2025-11-30 04:34:25"
+    },
+    {
+        "type": "wake_up",
+        "timestamp": "2025-11-30 10:10:23"
+    }
+]

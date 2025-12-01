@@ -1,5 +1,7 @@
 from gpiozero import PWMOutputDevice, Button
 from time import sleep
+import os
+from datetime import datetime
 
 BUZZER_PIN = 23
 BUTTON_PIN = 24
@@ -12,7 +14,12 @@ ALARM_PATTERN = [
     (0.1, 0.6)
 ]
 
-def run_active_alarm():
+def run_active_alarm(aware=True):
+    if aware:
+        if os.path.exists("skipnextalarm"):
+            os.remove("skipnextalarm")
+            return
+
     buzzer = PWMOutputDevice(BUZZER_PIN, frequency=2000)
     stop_button = Button(BUTTON_PIN)
     alarm_running = True

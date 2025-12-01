@@ -5,6 +5,8 @@ import os
 from dotenv import load_dotenv
 from requests import Session, RequestException
 
+from Alarm import run_active_alarm
+
 def running_on_pi():
     return socket.gethostname().startswith(("pi",))
 
@@ -49,7 +51,12 @@ def set_brightness(level, retries=3, entity_id=ENTITIES):
                 raise
             time.sleep(0.5)
 
-def fade_lights(duration=1800, steps=255, entities=["light.bed_light", "light.desk_overhead_light", "light.main_bedroom_light"]):
+def fade_lights(duration=1800, steps=255, entities=["light.bed_light", "light.desk_overhead_light", "light.main_bedroom_light"], aware=True, alarm_mode=False):
+    if aware:
+        if os.path.exists("skipnextfadelights"):
+            os.remove("skipnextfadelights")
+            return
+        
     step_time = duration / steps
 
     start = time.monotonic()
@@ -64,6 +71,9 @@ def fade_lights(duration=1800, steps=255, entities=["light.bed_light", "light.de
         sleep_for = next_target - time.monotonic()
         if sleep_for > 0:
             time.sleep(sleep_for)
+
+    if alarm_mode:
+        run_active_alarm(aware=aware)
 
 if __name__ == "__main__":
     print("Starting fade...")

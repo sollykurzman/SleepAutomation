@@ -12,11 +12,15 @@ import json
 import os
 from dataclasses import dataclass
 import subprocess
+from collections import deque
+import pandas as pd
+from scipy.signal import find_peaks
 
 import storeData as store_data
 import liveClassify as classifier
 import processData as data_processor
 from getCalendarData import get_calendar_data
+from fadeLights import fade_lights
 
 UDP_IP = "0.0.0.0"
 UDP_PORT = 5005
@@ -29,6 +33,8 @@ def handle_sigterm(signum, frame):
     sys.exit(0)
 
 signal.signal(signal.SIGTERM, handle_sigterm)
+
+dominant_history = deque(maxlen=1440)
 
 @dataclass(frozen=True)
 class NightContext:
@@ -57,6 +63,7 @@ class NightState:
     def __init__(self, first_event_time):
         self._lock = threading.Lock()
         self._first_event_time = first_event_time
+        self._alarm_scheduled = None
 
     def get_first_event_time(self):
         with self._lock:
@@ -65,6 +72,14 @@ class NightState:
     def set_first_event_time(self, value):
         with self._lock:
             self._first_event_time = value
+
+    def get_alarm_scheduled(self):
+        with self._lock:
+            return self._alarm_scheduled
+
+    def set_alarm_scheduled(self, value):
+        with self._lock:
+            self._alarm_scheduled = value
 
 def parse_packet(data):
     remainder = len(data) % 2
@@ -80,6 +95,7 @@ def parse_packet(data):
 def reciever(until=None):
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.settimeout(1.0)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2*1024*1024)
     sock.bind((UDP_IP, UDP_PORT))
     
@@ -132,58 +148,108 @@ def reciever(until=None):
         print("Stopping...")
         sock.close()
 
+from datetime import datetime, date as dt_date, timedelta
 
-def schedule_alarm(time, date=None, night_context=None): #e.g. time = "09:00:00"
-    if isinstance(time, str):
-        time = datetime.strptime(time, "%H:%M:%S").time()
+def schedule_alarm(alarm_time, date=None, night_context=None, night_state=None):
+    if isinstance(alarm_time, str):
+        alarm_time = datetime.strptime(alarm_time, "%H:%M:%S").time()
+
+    now = datetime.now()
 
     if date is not None:
         if isinstance(date, str):
             date = datetime.strptime(date, "%Y-%m-%d").date()
 
-        dt = datetime.combine(date, time) - timedelta(minutes=30)
-        fade_time = dt.time()
-        fade_date = dt.date()
+        alarm_dt = datetime.combine(date, time)
+        date_str = date.strftime('%Y-%m-%d')
     else:
-        # Use an arbitrary date; we only care about the time afterwards
-        dummy_date = dt_date(2000, 1, 1)
-        dt = datetime.combine(dummy_date, time) - timedelta(minutes=30)
-        fade_time = dt.time()
-        fade_date =  "*-*-*"
-        date = "*-*-*"
+        today = now.date()
+        if night_context is not None:
+            today = night_context.tomorrow.date()
+        alarm_dt = datetime.combine(today, time)
+        if alarm_dt <= now:
+            alarm_dt += timedelta(days=1)
 
+        date_str = "*-*-*"
+
+    delta = alarm_dt - datetime.now()
+    mins_until = int(delta.total_seconds() / 60)
+
+    if 0 <= mins_until <= 30:
+        print("Alarm is within 30 minutes, doing alternate behaviour")
+        with open("skipnextalarm", "w") as f:
+            pass
+        with open("skipnextfadelights", "w") as f:
+            pass
+        seconds_left = mins_until * 60
+        steps = max(1, min(seconds_left // 2, 255))
+        threading.Thread(
+            target=fade_lights,
+            kwargs={
+                "duration": seconds_left,
+                "steps": steps,
+                "aware": False,
+                "alarm_mode": True
+            }
+        ).start()
+        return
+
+    fade_dt = alarm_dt - timedelta(minutes=30)
+
+    if date is not None:
+        fade_date_str = fade_dt.date().strftime('%Y-%m-%d')
+    else:
+        # recurring timer: only care about the time; date is wildcard
+        fade_date_str = "*-*-*"
+
+    fade_time = fade_dt.time()
+
+    # ---- Build unit contents ----
     new_contents = f"""[Unit]
 Description=Alarm timer
 
 [Timer]
-OnCalendar={date.strftime('%Y-%m-%d')} {time.strftime('%H:%M:%S')}
+OnCalendar={date_str} {time.strftime('%H:%M:%S')}
 
 [Install]
 WantedBy=timers.target"""
-    
+
     new_fade_lights_contents = f"""[Unit]
 Description=Fade Lights timer
 
 [Timer]
-OnCalendar={fade_date.strftime('%Y-%m-%d')} {fade_time.strftime('%H:%M:%S')}
+OnCalendar={fade_date_str} {fade_time.strftime('%H:%M:%S')}
 
 [Install]
 WantedBy=timers.target"""
-    
+
+    # ---- Apply timers ----
     subprocess.run(["sudo", "/usr/local/bin/update_alarm_timer", new_contents])
     subprocess.run(["sudo", "/usr/local/bin/update_fade_lights_timer", new_fade_lights_contents])
     subprocess.run(["sudo", "systemctl", "daemon-reload"])
     subprocess.run(["sudo", "systemctl", "restart", "alarm.timer"])
     subprocess.run(["sudo", "systemctl", "restart", "fade_lights.timer"])
-    if night_context:
-        update_event_in_json("alarm_set", f"{night_context.tomorrow.strftime('%Y-%m-%d')} {time}", file_path=f"Data/{night_context.night_id}/sleep_events-{night_context.night_id}.json")
 
-def return_first_event_time(datetime):
-    events = get_calendar_data(datetime)
+    if night_state:
+        night_state.set_alarm_scheduled(alarm_dt)
+
+    if night_context:
+        update_event_in_json(
+            "alarm_set",
+            alarm_dt,
+            file_path=f"Data/{night_context.night_id}/sleep_events-{night_context.night_id}.json",
+        )
+
+
+def return_first_event_time(search_date):
+    events = get_calendar_data(search_date)
 
     events = sorted(events, key=lambda x: x['time'])
 
     events = [entry for entry in events if 'ignorethis' not in entry['notes']]
+
+    if not events:
+        return datetime.strptime("10:00:00", "%H:%M:%S").time()
 
     event_time = datetime.combine(datetime.today(), events[0]['time'])
 
@@ -248,9 +314,9 @@ def sleep_onset_action(night_context, night_state, timestamp):
     new_first_event_time = min(new_first_event_time, wake_today.time())
 
     if new_first_event_time != night_state.get_first_event_time():
-        print(f"Updating first event time to {new_first_event_time.strftime("%H:%M:%S")}")
-        night_state.set_first_event_time(new_first_event_time.strftime("%H:%M:%S"))
-        schedule_alarm(new_first_event_time.strftime("%H:%M:%S"), night_context)
+        print(f"Updating first event time to {new_first_event_time.strftime('%H:%M:%S')}")
+        night_state.set_first_event_time(new_first_event_time)
+        schedule_alarm(new_first_event_time.strftime("%H:%M:%S"), night_context=night_context, night_state=night_state)
 
 def save_event_to_json(event_type, timestamp, file_path="sleep_events.json"):
     event_record = {
@@ -304,10 +370,65 @@ def update_event_in_json(event_type, timestamp, file_path="sleep_events.json"):
     with open(file_path, "w") as f:
         json.dump(data, f, indent=4)
 
+def core_sleep_action(night_context, night_state):
+    history = list(dominant_history)
+
+    df = pd.DataFrame(history)
+
+    df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+
+    # Drop rows where timestamp conversion failed
+    df = df.dropna(subset=['timestamp'])
+
+    # Create a core indicator
+    df['is_core'] = df['state'].str.lower().str.contains('core').astype(int)
+
+    df = df.set_index('timestamp').sort_index()
+    sample_check = df['is_core'].resample('1min').max().fillna(0)
+
+    WINDOW_SIZE = '20min' 
+    smooth_signal = sample_check.rolling(window=WINDOW_SIZE, center=True).mean()
+
+    peaks_indices, _ = find_peaks(
+        smooth_signal.values, 
+        distance=70,       # Minimum distance between peaks (in minutes)
+        height=0.4,        # Intensity threshold (0.4 means 40% of the window was 'core')
+        prominence=0.1     # Peak must stand out relative to neighbors
+    )
+
+    peak_times = smooth_signal.index[peaks_indices]
+    intervals = pd.Series(peak_times).diff().dropna()
+
+    if len(peak_times) < 2 or intervals.empty:
+        print("No core sleep peaks detected for core sleep action.")
+        return
+    
+    intervals_mins = intervals.dt.total_seconds() / 60
+
+    valid_cycles = intervals_mins[(intervals_mins >= 70) & (intervals_mins <= 120)]
+
+    avg_cycle = valid_cycles.median()
+
+    last_peak = peak_times[-1]
+
+    next_prediction = last_peak + pd.Timedelta(minutes=avg_cycle)
+
+    alarm_dt = night_state.get_alarm_scheduled()
+    if alarm_dt is not None and next_prediction <= alarm_dt <= next_prediction + timedelta(minutes=30):
+    # if next_prediction <= night_state.get_alarm_scheduled() <= next_prediction + timedelta(minutes=30):
+        print(f"Adjusting alarm to core sleep peak at {next_prediction.strftime('%H:%M:%S')}")
+        schedule_alarm(
+            next_prediction.time().strftime("%H:%M:%S"),
+            date=night_context.tomorrow.date(),
+            night_context=night_context,
+            night_state=night_state
+        )
+
 def monitor_classification_history(night_context, night_state):
     print("Sleep Tracker Monitor Started...")
     dominant_buffer = classifier.HistoryBuffer(max_length=15)
     asleep = False
+    actionedCore = False
     while True:
         if len(classifier.classify_history_buffer.get_data()) < 30:
             time.sleep(1)
@@ -321,6 +442,10 @@ def monitor_classification_history(night_context, night_state):
 
         minute_state = statistics.mode(sleep_states)
         dominant_buffer.add_data(minute_state)
+        dominant_history.append({
+            "timestamp": datetime.now(),
+            "state": minute_state
+        })
 
         if len(dominant_buffer.get_data()) >= 15:
             recent_states = dominant_buffer.get_data()
@@ -342,6 +467,17 @@ def monitor_classification_history(night_context, night_state):
                 print(f"CONFIRMED WAKE UP: {current_time.strftime('%H:%M:%S')}")
                 save_event_to_json("wake_up", current_time, file_path=f"Data/{night_context.night_id}/sleep_events-{night_context.night_id}.json")
                 asleep = False
+            
+            alarm_dt = night_state.get_alarm_scheduled()
+            if alarm_dt is not None and current_time <= alarm_dt <= current_time + timedelta(minutes=60) and not actionedCore:
+            # if current_time <= night_state.get_alarm_scheduled() <= current_time + timedelta(minutes=60) and not actionedCore:
+                threading.Thread(
+                    target=core_sleep_action,
+                    args=(night_context, night_state),
+                    daemon=True
+                ).start()
+                actionedCore = True
+
 
 if __name__ == "__main__":
     cutoff = dt_time(14, 00, 0, 0)
@@ -358,7 +494,7 @@ if __name__ == "__main__":
 
     sleep_onset_action(night_context, night_state, datetime.now())
 
-    schedule_alarm(first_event_time.strftime("%H:%M:%S"), night_context)
+    schedule_alarm(first_event_time.strftime("%H:%M:%S"), night_context=night_context, night_state=night_state)
 
     store_data.start_workers(night_context.night_id, night_context.until)
 

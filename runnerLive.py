@@ -345,6 +345,8 @@ def sleep_onset_action(night_context, night_state, timestamp):
         )
 
 def save_event_to_json(event_type, timestamp, file_path="sleep_events.json"):
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
     event_record = {
         "type": event_type,
         "timestamp": timestamp.strftime("%Y-%m-%d %H:%M:%S")
@@ -365,6 +367,8 @@ def save_event_to_json(event_type, timestamp, file_path="sleep_events.json"):
         json.dump(data, f, indent=4)
 
 def update_event_in_json(event_type, timestamp, file_path="sleep_events.json"):
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    
     event_record = {
         "type": event_type,
         "timestamp": timestamp.strftime("%Y-%m-%d %H:%M:%S")
@@ -397,6 +401,8 @@ def update_event_in_json(event_type, timestamp, file_path="sleep_events.json"):
         json.dump(data, f, indent=4)
 
 def log_error_to_json(message, file_path):
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
     event_record = {
         "type": "error",
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),

@@ -67,5 +67,5 @@ def fade_lights(duration=1800, steps=255, entities=["light.bed_light", "light.de
 
 if __name__ == "__main__":
     print("Starting fade...")
-    fade_lights(duration=30, steps=50)
+    fade_lights()
     print("Fade complete.")

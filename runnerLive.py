@@ -92,7 +92,7 @@ def parse_packet(data):
         
     return struct.unpack(f'<{count}h', data)
 
-def reciever(until=None):
+def reciever(until=None, night_id=None):
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.settimeout(1.0)
@@ -113,6 +113,12 @@ def reciever(until=None):
                 if first_packet:
                     print(f"Connected to {addr[0]}:{addr[1]}")
                     first_packet = False
+                    if night_id:
+                        save_event_to_json(
+                            "receiver_first_packet",
+                            datetime.now(),
+                            file_path=f"Data/{night_id}/sleep_events-{night_id}.json"
+                        )
                 
                 timestamp = time.time()
                 adc_values = parse_packet(data)
@@ -137,6 +143,11 @@ def reciever(until=None):
                             
                     except Exception as e:
                         print(f"Error processing batch: {e}")
+                        if night_id:
+                            log_error_to_json(
+                                f"Error processing batch: {e}",
+                                file_path=f"Data/{night_id}/sleep_events-{night_id}.json"
+                            )
 
                     local_accumulator.clear()
 
@@ -160,13 +171,13 @@ def schedule_alarm(alarm_time, date=None, night_context=None, night_state=None):
         if isinstance(date, str):
             date = datetime.strptime(date, "%Y-%m-%d").date()
 
-        alarm_dt = datetime.combine(date, time)
+        alarm_dt = datetime.combine(date, alarm_time)
         date_str = date.strftime('%Y-%m-%d')
     else:
         today = now.date()
         if night_context is not None:
             today = night_context.tomorrow.date()
-        alarm_dt = datetime.combine(today, time)
+        alarm_dt = datetime.combine(today, alarm_time)
         if alarm_dt <= now:
             alarm_dt += timedelta(days=1)
 
@@ -209,7 +220,7 @@ def schedule_alarm(alarm_time, date=None, night_context=None, night_state=None):
 Description=Alarm timer
 
 [Timer]
-OnCalendar={date_str} {time.strftime('%H:%M:%S')}
+OnCalendar={date_str} {alarm_time.strftime('%H:%M:%S')}
 
 [Install]
 WantedBy=timers.target"""
@@ -246,7 +257,10 @@ def return_first_event_time(search_date):
 
     events = sorted(events, key=lambda x: x['time'])
 
-    events = [entry for entry in events if 'ignorethis' not in entry['notes']]
+    events = [
+        entry for entry in events
+        if 'notes' in entry and 'ignorethis' not in entry['notes']
+    ]
 
     if not events:
         return datetime.strptime("10:00:00", "%H:%M:%S").time()
@@ -300,23 +314,35 @@ def calculate_sleep_debt(night_context, past_days=7):
     return sum(HOURS_GOAL - x for x in sleep_hours)
 
 def sleep_onset_action(night_context, night_state, timestamp):
-    new_first_event_time = return_first_event_time(night_context.tomorrow.replace(hour=00, minute=00, second=0, microsecond=0))
+    try:
+        new_first_event_time = return_first_event_time(night_context.tomorrow.replace(hour=00, minute=00, second=0, microsecond=0))
 
-    sleep_debt = calculate_sleep_debt(night_context)
-    search_path = f"Data/{night_context.night_id}/sleep_events-{night_context.night_id}.json"
-    if os.path.exists(search_path):
-        slept_today = calculate_sleep_time(search_path)
-    else:
-        slept_today = 0.0
-    hours = HOURS_GOAL - slept_today + sleep_debt
-    wake_today = timestamp + timedelta(hours=hours)
+        sleep_debt = calculate_sleep_debt(night_context)
+        search_path = f"Data/{night_context.night_id}/sleep_events-{night_context.night_id}.json"
+        if os.path.exists(search_path):
+            slept_today = calculate_sleep_time(search_path)
+        else:
+            slept_today = 0.0
+        hours = HOURS_GOAL - slept_today + sleep_debt
+        wake_today = timestamp + timedelta(hours=hours)
 
-    new_first_event_time = min(new_first_event_time, wake_today.time())
+        save_event_to_json(
+            "ideal_wake_from_sleep_debt",
+            wake_today,
+            file_path=search_path,
+        )
 
-    if new_first_event_time != night_state.get_first_event_time():
-        print(f"Updating first event time to {new_first_event_time.strftime('%H:%M:%S')}")
-        night_state.set_first_event_time(new_first_event_time)
-        schedule_alarm(new_first_event_time.strftime("%H:%M:%S"), night_context=night_context, night_state=night_state)
+        new_first_event_time = min(new_first_event_time, wake_today.time())
+
+        if new_first_event_time != night_state.get_first_event_time():
+            print(f"Updating first event time to {new_first_event_time.strftime('%H:%M:%S')}")
+            night_state.set_first_event_time(new_first_event_time)
+            schedule_alarm(new_first_event_time.strftime("%H:%M:%S"), night_context=night_context, night_state=night_state)
+    except Exception as e:
+        log_error_to_json(
+            f"sleep_onset_action crashed: {e}",
+            file_path=f"Data/{night_context.night_id}/sleep_events-{night_context.night_id}.json"
+        )
 
 def save_event_to_json(event_type, timestamp, file_path="sleep_events.json"):
     event_record = {
@@ -370,59 +396,113 @@ def update_event_in_json(event_type, timestamp, file_path="sleep_events.json"):
     with open(file_path, "w") as f:
         json.dump(data, f, indent=4)
 
+def log_error_to_json(message, file_path):
+    event_record = {
+        "type": "error",
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "message": str(message)
+    }
+
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, "r") as f:
+                data = json.load(f)
+        except json.JSONDecodeError:
+            data = []
+    else:
+        data = []
+
+    data.append(event_record)
+
+    with open(file_path, "w") as f:
+        json.dump(data, f, indent=4)
+
 def core_sleep_action(night_context, night_state):
-    history = list(dominant_history)
+    try:
+        history = list(dominant_history)
+        if not history:
+            save_event_to_json(
+                "no_history_for_core_sleep",
+                datetime.now(),
+                file_path=f"Data/{night_context.night_id}/sleep_events-{night_context.night_id}.json",
+            )
+            return
 
-    df = pd.DataFrame(history)
+        df = pd.DataFrame(history)
 
-    df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+        df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
 
-    # Drop rows where timestamp conversion failed
-    df = df.dropna(subset=['timestamp'])
+        # Drop rows where timestamp conversion failed
+        df = df.dropna(subset=['timestamp'])
 
-    # Create a core indicator
-    df['is_core'] = df['state'].str.lower().str.contains('core').astype(int)
+        # Create a core indicator
+        df['is_core'] = df['state'].str.lower().str.contains('core').astype(int)
 
-    df = df.set_index('timestamp').sort_index()
-    sample_check = df['is_core'].resample('1min').max().fillna(0)
+        df = df.set_index('timestamp').sort_index()
+        sample_check = df['is_core'].resample('1min').max().fillna(0)
 
-    WINDOW_SIZE = '20min' 
-    smooth_signal = sample_check.rolling(window=WINDOW_SIZE, center=True).mean()
+        WINDOW_SIZE = '20min' 
+        smooth_signal = sample_check.rolling(window=WINDOW_SIZE, center=True).mean()
 
-    peaks_indices, _ = find_peaks(
-        smooth_signal.values, 
-        distance=70,       # Minimum distance between peaks (in minutes)
-        height=0.4,        # Intensity threshold (0.4 means 40% of the window was 'core')
-        prominence=0.1     # Peak must stand out relative to neighbors
-    )
-
-    peak_times = smooth_signal.index[peaks_indices]
-    intervals = pd.Series(peak_times).diff().dropna()
-
-    if len(peak_times) < 2 or intervals.empty:
-        print("No core sleep peaks detected for core sleep action.")
-        return
-    
-    intervals_mins = intervals.dt.total_seconds() / 60
-
-    valid_cycles = intervals_mins[(intervals_mins >= 70) & (intervals_mins <= 120)]
-
-    avg_cycle = valid_cycles.median()
-
-    last_peak = peak_times[-1]
-
-    next_prediction = last_peak + pd.Timedelta(minutes=avg_cycle)
-
-    alarm_dt = night_state.get_alarm_scheduled()
-    if alarm_dt is not None and next_prediction <= alarm_dt <= next_prediction + timedelta(minutes=30):
-    # if next_prediction <= night_state.get_alarm_scheduled() <= next_prediction + timedelta(minutes=30):
-        print(f"Adjusting alarm to core sleep peak at {next_prediction.strftime('%H:%M:%S')}")
-        schedule_alarm(
-            next_prediction.time().strftime("%H:%M:%S"),
-            date=night_context.tomorrow.date(),
-            night_context=night_context,
-            night_state=night_state
+        peaks_indices, _ = find_peaks(
+            smooth_signal.values, 
+            distance=70,       # Minimum distance between peaks (in minutes)
+            height=0.4,        # Intensity threshold (0.4 means 40% of the window was 'core')
+            prominence=0.1     # Peak must stand out relative to neighbors
         )
+
+        peak_times = smooth_signal.index[peaks_indices]
+        intervals = pd.Series(peak_times).diff().dropna()
+
+        if len(peak_times) < 2 or intervals.empty:
+            print("No core sleep peaks detected for core sleep action.")
+            save_event_to_json(
+                "no_core_peaks_detected",
+                datetime.now(),
+                file_path=f"Data/{night_context.night_id}/sleep_events-{night_context.night_id}.json",
+            )
+            return
+    
+        intervals_mins = intervals.dt.total_seconds() / 60
+
+        valid_cycles = intervals_mins[(intervals_mins >= 70) & (intervals_mins <= 120)]
+
+        if valid_cycles.empty or pd.isna(avg_cycle):
+            print("No valid core sleep cycles found; skipping core sleep adjustment.")
+            save_event_to_json(
+                "no_valid_core_cycles",
+                datetime.now(),
+                file_path=f"Data/{night_context.night_id}/sleep_events-{night_context.night_id}.json",
+            )
+            return
+
+        avg_cycle = valid_cycles.median()
+
+        last_peak = peak_times[-1]
+
+        next_prediction = last_peak + pd.Timedelta(minutes=avg_cycle)
+
+        alarm_dt = night_state.get_alarm_scheduled()
+        if alarm_dt is not None and next_prediction <= alarm_dt <= next_prediction + timedelta(minutes=30):
+        # if next_prediction <= night_state.get_alarm_scheduled() <= next_prediction + timedelta(minutes=30):
+            print(f"Adjusting alarm to core sleep peak at {next_prediction.strftime('%H:%M:%S')}")
+            save_event_to_json(
+                "core_sleep_alarm_set: " + next_prediction.strftime('%H:%M:%S'),
+                datetime.now(),
+                file_path=f"Data/{night_context.night_id}/sleep_events-{night_context.night_id}.json",
+            )
+            schedule_alarm(
+                next_prediction.time().strftime("%H:%M:%S"),
+                date=night_context.tomorrow.date(),
+                night_context=night_context,
+                night_state=night_state
+            )
+    except Exception as e:
+        log_error_to_json(
+            f"core_sleep_action failed: {e}",
+            file_path=f"Data/{night_context.night_id}/sleep_events-{night_context.night_id}.json"
+        )
+        return
 
 def monitor_classification_history(night_context, night_state):
     print("Sleep Tracker Monitor Started...")
@@ -430,53 +510,61 @@ def monitor_classification_history(night_context, night_state):
     asleep = False
     actionedCore = False
     while True:
-        if len(classifier.classify_history_buffer.get_data()) < 30:
-            time.sleep(1)
-            continue
-        
-        sleep_data = classifier.classify_history_buffer.get_data()
-        classifier.classify_history_buffer.clear_data()
-
-        sleep_states = [state for _, state in sleep_data]
-        timestamps = [time for time, _ in sleep_data]
-
-        minute_state = statistics.mode(sleep_states)
-        dominant_buffer.add_data(minute_state)
-        dominant_history.append({
-            "timestamp": datetime.now(),
-            "state": minute_state
-        })
-
-        if len(dominant_buffer.get_data()) >= 15:
-            recent_states = dominant_buffer.get_data()
-            sleep_count = sum(1 for state in recent_states if state in ["Core Sleep", "Deep Sleep", "REM Sleep"])
-            density = sleep_count / len(recent_states)
-
-            current_time = timestamps[-1]
-
-            if density >= 0.75 and not asleep:
-                print(f"CONFIRMED SLEEP ONSET: {current_time.strftime('%H:%M:%S')}")
-                save_event_to_json("sleep_onset", current_time, file_path=f"Data/{night_context.night_id}/sleep_events-{night_context.night_id}.json")
-                threading.Thread(
-                    target=sleep_onset_action,
-                    args=(night_context, night_state, current_time),
-                    daemon=True
-                ).start()
-                asleep = True
-            elif density < 0.40 and asleep:
-                print(f"CONFIRMED WAKE UP: {current_time.strftime('%H:%M:%S')}")
-                save_event_to_json("wake_up", current_time, file_path=f"Data/{night_context.night_id}/sleep_events-{night_context.night_id}.json")
-                asleep = False
+        try:
+            if len(classifier.classify_history_buffer.get_data()) < 30:
+                time.sleep(1)
+                continue
             
-            alarm_dt = night_state.get_alarm_scheduled()
-            if alarm_dt is not None and current_time <= alarm_dt <= current_time + timedelta(minutes=60) and not actionedCore:
-            # if current_time <= night_state.get_alarm_scheduled() <= current_time + timedelta(minutes=60) and not actionedCore:
-                threading.Thread(
-                    target=core_sleep_action,
-                    args=(night_context, night_state),
-                    daemon=True
-                ).start()
-                actionedCore = True
+            sleep_data = classifier.classify_history_buffer.get_data()
+            classifier.classify_history_buffer.clear_data()
+
+            sleep_states = [state for _, state in sleep_data]
+            timestamps = [time for time, _ in sleep_data]
+
+            minute_state = statistics.mode(sleep_states)
+            dominant_buffer.add_data(minute_state)
+            dominant_history.append({
+                "timestamp": datetime.now(),
+                "state": minute_state
+            })
+
+            if len(dominant_buffer.get_data()) >= 15:
+                recent_states = dominant_buffer.get_data()
+                sleep_count = sum(1 for state in recent_states if state in ["Core Sleep", "Deep Sleep", "REM Sleep"])
+                density = sleep_count / len(recent_states)
+
+                current_time = timestamps[-1]
+
+                if density >= 0.75 and not asleep:
+                    print(f"CONFIRMED SLEEP ONSET: {current_time.strftime('%H:%M:%S')}")
+                    save_event_to_json("sleep_onset", current_time, file_path=f"Data/{night_context.night_id}/sleep_events-{night_context.night_id}.json")
+                    threading.Thread(
+                        target=sleep_onset_action,
+                        args=(night_context, night_state, current_time),
+                        daemon=True
+                    ).start()
+                    asleep = True
+                elif density < 0.40 and asleep:
+                    print(f"CONFIRMED WAKE UP: {current_time.strftime('%H:%M:%S')}")
+                    save_event_to_json("wake_up", current_time, file_path=f"Data/{night_context.night_id}/sleep_events-{night_context.night_id}.json")
+                    asleep = False
+                
+                alarm_dt = night_state.get_alarm_scheduled()
+                if alarm_dt is not None and current_time <= alarm_dt <= current_time + timedelta(minutes=60) and not actionedCore:
+                # if current_time <= night_state.get_alarm_scheduled() <= current_time + timedelta(minutes=60) and not actionedCore:
+                    threading.Thread(
+                        target=core_sleep_action,
+                        args=(night_context, night_state),
+                        daemon=True
+                    ).start()
+                    actionedCore = True
+        except Exception as e:
+            log_error_to_json(
+                f"monitor_classification_history error: {e}",
+                file_path=f"Data/{night_context.night_id}/sleep_events-{night_context.night_id}.json"
+            )
+            time.sleep(1)
+            
 
 
 if __name__ == "__main__":
@@ -484,6 +572,12 @@ if __name__ == "__main__":
     today = datetime.now()
 
     night_context = build_night_context(cutoff, today)
+
+    save_event_to_json(
+        "service_started",
+        datetime.now(),
+        file_path=f"Data/{night_context.night_id}/sleep_events-{night_context.night_id}.json"
+    )
 
     print(f"Running data collection and classification until {night_context.until} for night: {night_context.night_id}")
 
@@ -502,7 +596,7 @@ if __name__ == "__main__":
 
     reciever_thread = threading.Thread(
         target=reciever,
-        args=(night_context.until,),
+        args=(night_context.until,night_context.night_id),
         daemon=True
     )
     reciever_thread.start()

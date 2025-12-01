@@ -368,7 +368,7 @@ def save_event_to_json(event_type, timestamp, file_path="sleep_events.json"):
 
 def update_event_in_json(event_type, timestamp, file_path="sleep_events.json"):
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    
+
     event_record = {
         "type": event_type,
         "timestamp": timestamp.strftime("%Y-%m-%d %H:%M:%S")
@@ -470,10 +470,11 @@ def core_sleep_action(night_context, night_state):
             return
     
         intervals_mins = intervals.dt.total_seconds() / 60
-
+        
         valid_cycles = intervals_mins[(intervals_mins >= 70) & (intervals_mins <= 120)]
 
-        if valid_cycles.empty or pd.isna(avg_cycle):
+        if valid_cycles.empty:
+            # no valid cycles at all
             print("No valid core sleep cycles found; skipping core sleep adjustment.")
             save_event_to_json(
                 "no_valid_core_cycles",
@@ -483,6 +484,15 @@ def core_sleep_action(night_context, night_state):
             return
 
         avg_cycle = valid_cycles.median()
+
+        if pd.isna(avg_cycle):
+            print("Average cycle is NaN; skipping core sleep adjustment.")
+            save_event_to_json(
+                "average_cycle_is_NaN",
+                datetime.now(),
+                file_path=f"Data/{night_context.night_id}/sleep_events-{night_context.night_id}.json",
+            )
+            return
 
         last_peak = peak_times[-1]
 

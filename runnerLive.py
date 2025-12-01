@@ -3,7 +3,7 @@
 import socket
 import struct
 import time
-from datetime import datetime, timedelta, time as dt_time
+from datetime import datetime, timedelta, time as dt_time, date as dt_date
 import threading
 import signal
 import sys
@@ -134,21 +134,47 @@ def reciever(until=None):
 
 
 def schedule_alarm(time, date=None, night_context=None): #e.g. time = "09:00:00"
-    if date is None:
+    if isinstance(time, str):
+        time = datetime.strptime(time, "%H:%M:%S").time()
+
+    if date is not None:
+        if isinstance(date, str):
+            date = datetime.strptime(date, "%Y-%m-%d").date()
+
+        dt = datetime.combine(date, time) - timedelta(minutes=30)
+        fade_time = dt.time()
+        fade_date = dt.date()
+    else:
+        # Use an arbitrary date; we only care about the time afterwards
+        dummy_date = dt_date(2000, 1, 1)
+        dt = datetime.combine(dummy_date, time) - timedelta(minutes=30)
+        fade_time = dt.time()
+        fade_date =  "*-*-*"
         date = "*-*-*"
 
     new_contents = f"""[Unit]
 Description=Alarm timer
 
 [Timer]
-OnCalendar={date} {time}
+OnCalendar={date.strftime('%Y-%m-%d')} {time.strftime('%H:%M:%S')}
+
+[Install]
+WantedBy=timers.target"""
+    
+    new_fade_lights_contents = f"""[Unit]
+Description=Fade Lights timer
+
+[Timer]
+OnCalendar={fade_date.strftime('%Y-%m-%d')} {fade_time.strftime('%H:%M:%S')}
 
 [Install]
 WantedBy=timers.target"""
     
     subprocess.run(["sudo", "/usr/local/bin/update_alarm_timer", new_contents])
+    subprocess.run(["sudo", "/usr/local/bin/update_fade_lights_timer", new_fade_lights_contents])
     subprocess.run(["sudo", "systemctl", "daemon-reload"])
     subprocess.run(["sudo", "systemctl", "restart", "alarm.timer"])
+    subprocess.run(["sudo", "systemctl", "restart", "fade_lights.timer"])
     if night_context:
         update_event_in_json("alarm_set", f"{night_context.tomorrow.strftime('%Y-%m-%d')} {time}", file_path=f"Data/{night_context.night_id}/sleep_events-{night_context.night_id}.json")
 

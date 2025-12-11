@@ -1,0 +1,26 @@
+[
+    {
+        "type": "service_started",
+        "timestamp": "2025-12-01 21:01:10"
+    },
+    {
+        "type": "ideal_wake_from_sleep_debt",
+        "timestamp": "2025-12-02 10:34:36"
+    },
+    {
+        "type": "alarm_set",
+        "timestamp": "2025-12-02 09:58:44"
+    },
+    {
+        "type": "receiver_first_packet",
+        "timestamp": "2025-12-01 21:01:47"
+    },
+    {
+        "type": "sleep_onset",
+        "timestamp": "2025-12-02 03:42:51"
+    },
+    {
+        "type": "ideal_wake_from_sleep_debt",
+        "timestamp": "2025-12-02 09:58:44"
+    }
+]

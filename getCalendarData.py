@@ -64,5 +64,5 @@ if __name__ == "__main__":
     today = datetime.date.today()
     tomorrow = today + datetime.timedelta(days=1)
     
-    events = get_calendar_data(tomorrow)
+    events = get_calendar_data(today)
     print(f"Earliest Scheduled Event Tomorrow is at: {sorted(events, key=lambda x: x['time'])[0]['time']}")

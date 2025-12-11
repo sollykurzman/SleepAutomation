@@ -1,0 +1,66 @@
+[
+    {
+        "type": "service_started",
+        "timestamp": "2025-12-08 21:01:17"
+    },
+    {
+        "type": "ideal_wake_from_sleep_debt",
+        "timestamp": "2025-12-09 08:50:42"
+    },
+    {
+        "type": "alarm_set",
+        "timestamp": "2025-12-09 09:00:00"
+    },
+    {
+        "type": "receiver_first_packet",
+        "timestamp": "2025-12-08 21:01:42"
+    },
+    {
+        "type": "sleep_onset",
+        "timestamp": "2025-12-09 03:10:14"
+    },
+    {
+        "type": "ideal_wake_from_sleep_debt",
+        "timestamp": "2025-12-09 09:09:39"
+    },
+    {
+        "type": "wake_up",
+        "timestamp": "2025-12-09 03:43:52"
+    },
+    {
+        "type": "sleep_onset",
+        "timestamp": "2025-12-09 04:21:27"
+    },
+    {
+        "type": "ideal_wake_from_sleep_debt",
+        "timestamp": "2025-12-09 10:58:27"
+    },
+    {
+        "type": "wake_up",
+        "timestamp": "2025-12-09 05:04:29"
+    },
+    {
+        "type": "sleep_onset",
+        "timestamp": "2025-12-09 06:43:08"
+    },
+    {
+        "type": "ideal_wake_from_sleep_debt",
+        "timestamp": "2025-12-09 14:58:47"
+    },
+    {
+        "type": "wake_up",
+        "timestamp": "2025-12-09 07:25:22"
+    },
+    {
+        "type": "sleep_onset",
+        "timestamp": "2025-12-09 09:43:51"
+    },
+    {
+        "type": "ideal_wake_from_sleep_debt",
+        "timestamp": "2025-12-09 19:34:08"
+    },
+    {
+        "type": "wake_up",
+        "timestamp": "2025-12-09 10:07:56"
+    }
+]

@@ -1,0 +1,38 @@
+[
+    {
+        "type": "service_started",
+        "timestamp": "2025-12-06 01:01:09"
+    },
+    {
+        "type": "ideal_wake_from_sleep_debt",
+        "timestamp": "2025-12-06 16:18:27"
+    },
+    {
+        "type": "alarm_set",
+        "timestamp": "2025-12-06 08:00:00"
+    },
+    {
+        "type": "receiver_first_packet",
+        "timestamp": "2025-12-06 01:01:28"
+    },
+    {
+        "type": "sleep_onset",
+        "timestamp": "2025-12-06 01:51:19"
+    },
+    {
+        "type": "ideal_wake_from_sleep_debt",
+        "timestamp": "2025-12-06 09:59:47"
+    },
+    {
+        "type": "wake_up",
+        "timestamp": "2025-12-06 05:36:48"
+    },
+    {
+        "type": "sleep_onset",
+        "timestamp": "2025-12-06 05:50:33"
+    },
+    {
+        "type": "wake_up",
+        "timestamp": "2025-12-06 09:10:24"
+    }
+]

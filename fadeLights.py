@@ -51,7 +51,7 @@ def set_brightness(level, retries=3, entity_id=ENTITIES):
                 raise
             time.sleep(0.5)
 
-def fade_lights(duration=1800, steps=255, entities=["light.bed_light", "light.desk_overhead_light", "light.main_bedroom_light"], aware=True, alarm_mode=False):
+def fade_lights(duration=1800, steps=255, entities=["light.bed_light", "light.desk_overhead_light", "light.main_bedroom_light"], aware=True, alarm_mode=False, max_brightness=78):
     if aware:
         if os.path.exists("skipnextfadelights"):
             os.remove("skipnextfadelights")
@@ -63,7 +63,7 @@ def fade_lights(duration=1800, steps=255, entities=["light.bed_light", "light.de
 
     for i in range(steps + 1):
         x = i / steps
-        brightness = 255 * (1 - math.cos(x * math.pi)) / 2 
+        brightness = max_brightness * (1 - math.cos(x * math.pi)) / 2 
         
         set_brightness(brightness, entity_id=entities)
 

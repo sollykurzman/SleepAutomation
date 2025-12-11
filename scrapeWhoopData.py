@@ -9,7 +9,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATE = "261125"
+DATE = "021225"
+DATE_STRING = ["011225", "021225", "031225", "041225"]
 ATHLETE_ID = "32447963"
 AUTH_FILE = "whoopAuth.json"
 EMAIL = os.getenv("WHOOP_EMAIL")
@@ -159,12 +160,11 @@ def save_sleep_data(json_data, filename):
     print(f"Saved to {filename}")
 
 def scrape_whoop_data(file):
-    date = "2025-11-" + file[:2]
-    date_object = datetime.strptime(date, "%Y-%m-%d")
+    date_object = datetime.strptime(file, "%d%m%y")
     date = date_object + timedelta(days=1)
     date = date.strftime("%Y-%m-%d")
 
-    login_and_save_state()
+    # login_and_save_state()
 
     if not os.path.exists(f"Data/{file}"):
         os.makedirs(f"Data/{file}")
@@ -176,4 +176,5 @@ def scrape_whoop_data(file):
         print("No Sleep State data retrieved.")
 
 if __name__ == "__main__":
-    scrape_whoop_data(DATE)
+    for date in DATE_STRING:
+        scrape_whoop_data(date)
